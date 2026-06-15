@@ -22,11 +22,21 @@ async function run() {
   const page = await context.newPage();
 
   const urls = await collectRecipeUrls(page, BASE_URL, TOTAL_PAGES);
-  const recipe = await scrapeRecipe(urls[3]);
+  
+   
+  const recipes = [];
+   
+  for (let i = 0; i < urls.length; i++) {
+   console.log(`\nScraping ${i + 1} of ${urls.length}`);
+   console.log(`URL: ${urls[i]}`);
+   const recipe = await scrapeRecipe(context, urls[i]);
+   console.log(recipe);
+   recipes.push(recipe);
 
-  console.log(`\nTotal URLs collected: ${urls.length}`);
-  console.log("First 5:", urls.slice(0, 5));
-  console.log("Scraped Recipe:", recipe);
+   console.log(`Completed ${i + 1}/${urls.length}`);
+  }
+
+  console.log(`\nTotal Recipes Scraped: ${recipes.length}`);
 
   await browser.close();
 }

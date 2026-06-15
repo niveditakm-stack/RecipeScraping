@@ -2,14 +2,10 @@ import { chromium } from 'playwright';
 import { classifyCuisine } from "./cuisineClassifier.js";
 import { classifyRecipeCategory } from "./recipeCategoryClassifier.js";
 import { classifyFoodCategory } from "./foodCategoryClassifier.js";
-async function scrapeRecipe(recipeUrl) {
+async function scrapeRecipe(context,recipeUrl) {
 
     console.log(`[Recipe] Scraping: ${recipeUrl}`);
-    const browser = await chromium.launch({
-        headless: false
-    });
-
-    const page = await browser.newPage();
+    const page = await context.newPage();
 
     try {
 
@@ -49,19 +45,24 @@ async function scrapeRecipe(recipeUrl) {
         const methodSteps = ( await page.locator('.rsepc ol li').allTextContents()
         ).map(step =>step.replace(/\s+/g, ' ').trim()
        );
-       const recipeDescription = ((await page.locator('.recipe-descfirst-box p').textContent()) || ''
-       ).replace(/\s+/g, ' ').trim();
+       const descriptionLocator = page.locator('.recipe-descfirst-box p');
 
+       let recipeDescription = '';
+
+       if (await descriptionLocator.count() > 0) {
+       recipeDescription = ((await descriptionLocator.first().textContent()) || '') .replace(/\s+/g, ' ').trim();
+       };
+       
         // Breadcrumbs
         const breadcrumbs = (await page.locator('.breadcrumbs a').allTextContents()
-        ).map(item => item.trim());
+                ).map(item => item.trim());
 
         // Tags
         const tags = (await page.locator('.tags-list li a').allTextContents()
         ).map(tag => tag.trim());
 
        // Cuisine category
-         const cuisineCategory = classifyCuisine(recipeDescription);
+        const cuisineCategory = classifyCuisine(recipeDescription);
 
       // Recipe category
          const recipeCategory = classifyRecipeCategory(recipeName);
@@ -71,7 +72,7 @@ async function scrapeRecipe(recipeUrl) {
     
       //Nutrients values
       const rowCount = await page.locator("table tr").count();
-      console.log("Total rows:", rowCount);
+      //console.log("Total rows:", rowCount);
 
       const nutrientValues = {};
 
@@ -81,7 +82,7 @@ async function scrapeRecipe(recipeUrl) {
       const tdCount = await row.locator("td").count();
 
       if (tdCount < 2) {
-        console.log(`Skipping row ${i} - found ${tdCount} td elements`);
+        //console.log(`Skipping row ${i} - found ${tdCount} td elements`);
         continue;
     }
 
@@ -92,7 +93,7 @@ async function scrapeRecipe(recipeUrl) {
       nutrientValues[nutrientName] = nutrientValue;
 
     }
-      console.log(nutrientValues);
+      //console.log(nutrientValues);
    
      // Recipe object
         const recipe = {
@@ -120,7 +121,7 @@ async function scrapeRecipe(recipeUrl) {
 
     } finally {
 
-        await browser.close();
+       await page.close();
     }
 }
 
