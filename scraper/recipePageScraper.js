@@ -52,6 +52,8 @@ async function scrapeRecipe(context, recipeUrl) {
     const ingredients = (
       await page.locator("#ingredients li").allTextContents()
     ).map((text) => text.replace(/\s+/g, " ").trim());
+
+    console.log;
     //preparation method
     const methodSteps = (
       await page.locator(".rsepc ol li").allTextContents()
@@ -116,20 +118,20 @@ async function scrapeRecipe(context, recipeUrl) {
 
     // Recipe object
     const recipe = {
-      "Recipe ID": recipeId,
-      "Recipe Name": recipeName,
-      "Recipe Category": recipeCategory,
-      "Food Category": foodCategory,
-      Ingredients: ingredients,
-      "Preparation Time": preparationTime,
-      "Cooking Time": cookingTime,
-      Tags: tags,
-      "No of Servings": noOfServings,
-      "Cuisine Category": cuisineCategory,
-      "Recipe Description": recipeDescription,
-      "Preparation Method": methodSteps,
-      "Nutrient Values": nutrientValues,
-      "Recipe URL": page.url(),
+      recipe_id: recipeId,
+      recipe_name: recipeName,
+      recipe_category: recipeCategory,
+      food_category: foodCategory,
+      ingredients: ingredients.join(", "),
+      preparation_time: preparationTime,
+      cooking_time: cookingTime,
+      tag: tags.join(", "),
+      no_of_servings: noOfServings,
+      cuisine_category: cuisineCategory,
+      recipe_description: recipeDescription,
+      preparation_method: methodSteps.join(" "),
+      nutrient_values: JSON.stringify(nutrientValues),
+      recipe_url: page.url(),
     };
 
     return recipe;

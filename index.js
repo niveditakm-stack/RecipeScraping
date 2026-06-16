@@ -1,92 +1,80 @@
 import { chromium } from "playwright";
+import config from "./config/config.js";
+import pool from "./database/dbConnection.js";
 import { collectRecipeUrls } from "./scraper/recipeUrlCollector.js";
 import { scrapeRecipe } from "./scraper/recipePageScraper.js";
-import {
-  loadIngredientRules,
-  filterRecipe,
-} from "./scraper/recipeValidator.js";
-import { saveRecipe } from "./database/recipeRepository.js";
+import { applyLFVFilter } from "./filters/lfvFilter.js";
+import { applyLCHFFilter } from "./filters/lchfFilter.js";
+import { applyAllergyFilter } from "./filters/allergyFilter.js";
+import { insertRecipe } from "./database/recipeRepository.js";
+import { readLFVData, readLCHFData } from "./readers/excelReader.js";
 
-//const BASE_URL = "https://www.tarladalal.com/recipes/";
-
-//const BASE_URL = "https://www.tarladalal.com/recipes/";
-const TOTAL_PAGES = 2;
-
-const EXCEL_FILE_PATH =
-  "./data/IngredientsAndComorbidities-ScrapperHackathon.xlsx";
+const TOTAL_PAGES = 1;
 
 async function run() {
-  let browser;
+  const { lfvEliminate, lfvAdd } = readLFVData();
+  const { lchfEliminate, lchfAdd } = readLCHFData();
+  
+  const browser = await chromium.launch({
+    headless: config.scraper.headless,
+  });
 
-  try {
-    loadIngredientRules(EXCEL_FILE_PATH);
+  const context = await browser.newContext();
 
-    browser = await chromium.launch({
-      headless: false,
-    });
+  await context.addInitScript(() => {
+    Object.defineProperty(navigator, "webdriver", { get: () => undefined });
+  });
 
-    const context = await browser.newContext({
-      userAgent:
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+  const page = await context.newPage();
 
-      viewport: {
-        width: 1280,
-        height: 800,
-      },
-    });
+  await page.goto(config.scraper.baseUrl, {
+    waitUntil: "domcontentloaded",
+    timeout: 60000,
+  });
+  await page.waitForTimeout(3000);
 
-    await context.addInitScript(() => {
-      Object.defineProperty(navigator, "webdriver", {
-        get: () => undefined,
-      });
-    });
+  const urls = await collectRecipeUrls(
+    page,
+    `${config.scraper.baseUrl}/recipes/`,
+    TOTAL_PAGES,
+  );
+  console.log(`[Main] Total URLs collected: ${urls.length}`);
 
-    const page = await context.newPage();
+  //const testUrls = urls.slice(0, 5);
+  for (const url of urls) {
+    try {
+      console.log("\n=============================");
 
-    const urls = await collectRecipeUrls(page, BASE_URL, TOTAL_PAGES);
+      const recipe = await scrapeRecipe(context, url);
+      if (!recipe) continue;
 
-    console.log(`Total URLs collected: ${urls.length}`);
+      console.log("Name:", recipe.recipe_name);
+      console.log("Ingredients:", recipe.ingredients?.substring(0, 80));
 
-    for (let i = 0; i < urls.length; i++) {
-      try {
-        console.log(`\nProcessing ${i + 1}/${urls.length}`);
-
-        const recipe = await scrapeRecipe(context, urls[i]);
-
-        if (!recipe) {
-          console.log("Recipe could not be scraped");
-
-          continue;
-        }
-
-        const filteredRecipes = filterRecipe(recipe);
-
-        if (filteredRecipes.length === 0) {
-          console.log(`${recipe["Recipe Name"]} did not match any diet`);
-
-          continue;
-        }
-
-        for (const recipeData of filteredRecipes) {
-          await saveRecipe(recipeData);
-
-          console.log(
-            `Saved: ${recipeData.recipe_name} (${recipeData.diet_type})`,
-          );
-        }
-      } catch (error) {
-        console.error(`Failed processing ${urls[i]}`, error.message);
+      const lfvResult = applyLFVFilter(recipe, lfvEliminate, lfvAdd);
+      console.log("[LFV]", lfvResult.reason);
+      if (lfvResult.table) {
+        const lfvAllergy = applyAllergyFilter(recipe, lfvResult.table);
+        console.log("[ALLERGY]", lfvAllergy.reason);
+        await insertRecipe(recipe, lfvAllergy.table, lfvAllergy.allergy_type);
       }
-    }
 
-    console.log("Scraping completed successfully");
-  } catch (error) {
-    console.error("Application error:", error.message);
-  } finally {
-    if (browser) {
-      await browser.close();
+      const lchfResult = applyLCHFFilter(recipe, lchfEliminate, lchfAdd);
+      console.log("[LCHF]", lchfResult.reason);
+      if (lchfResult.table) {
+        const lchfAllergy = applyAllergyFilter(recipe, lchfResult.table);
+        console.log("[ALLERGY]", lchfAllergy.reason);
+        await insertRecipe(recipe, lchfAllergy.table, lchfAllergy.allergy_type);
+      }
+    } catch (err) {
+      console.error(`[Error] Failed: ${url}`, err.message);
     }
+    await page.waitForTimeout(3000);
   }
+
+  await browser.close();
+  await pool.end();
+  console.log("\n[Main] Scraping complete!");
 }
 
 run();
