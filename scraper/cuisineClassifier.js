@@ -32,5 +32,5 @@ description.includes("indian cuisine")
 return "Indian";
 }
 
-return "Unknown";
+return "Indian";
 }
