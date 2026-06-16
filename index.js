@@ -2,7 +2,7 @@ import { chromium } from "playwright";
 import { collectRecipeUrls } from "./scraper/recipeUrlCollector.js";
 import { scrapeRecipe } from "./scraper/recipePageScraper.js";
 
-const BASE_URL = "https://www.tarladalal.com/recipes/";
+//const BASE_URL = "https://www.tarladalal.com/recipes/";
 const TOTAL_PAGES = 2;
 
 async function run() {
@@ -21,19 +21,22 @@ async function run() {
 
   const page = await context.newPage();
 
-  const urls = await collectRecipeUrls(page, BASE_URL, TOTAL_PAGES);
+  const urls = await collectRecipeUrls(
+    page,
+    `${config.scraper.baseUrl}/recipes/`,
+    TOTAL_PAGES,
+  );
   
-   
   const recipes = [];
-   
-  for (let i = 0; i < urls.length; i++) {
-   console.log(`\nScraping ${i + 1} of ${urls.length}`);
-   console.log(`URL: ${urls[i]}`);
-   const recipe = await scrapeRecipe(context, urls[i]);
-   console.log(recipe);
-   recipes.push(recipe);
 
-   console.log(`Completed ${i + 1}/${urls.length}`);
+  for (let i = 0; i < urls.length; i++) {
+    console.log(`\nScraping ${i + 1} of ${urls.length}`);
+    console.log(`URL: ${urls[i]}`);
+    const recipe = await scrapeRecipe(context, urls[i]);
+    console.log(recipe);
+    recipes.push(recipe);
+
+    console.log(`Completed ${i + 1}/${urls.length}`);
   }
 
   console.log(`\nTotal Recipes Scraped: ${recipes.length}`);
