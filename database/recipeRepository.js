@@ -68,7 +68,10 @@ export async function insertRecipe(recipe, tableName, allergyType = null) {
         recipe.recipe_url,
       ];
     }
-
+    console.log("================================");
+    console.log("TABLE:", tableName);
+    console.log("RECIPE:", recipe.recipe_name);
+    console.log("================================");
     await pool.query(query, values);
     console.log(`Inserted into ${tableName}: ${recipe.recipe_name}`);
   } catch (err) {

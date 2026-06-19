@@ -1,4 +1,5 @@
 import { chromium } from "playwright";
+import fs from "fs";
 import config from "./config/config.js";
 import pool from "./database/dbConnection.js";
 import { collectRecipeUrls } from "./scraper/recipeUrlCollector.js";
@@ -9,7 +10,7 @@ import { applyAllergyFilter } from "./filters/allergyFilter.js";
 import { insertRecipe } from "./database/recipeRepository.js";
 import { readLFVData, readLCHFData } from "./readers/excelReader.js";
 
-const TOTAL_PAGES = 1;
+const TOTAL_PAGES = 2;
 
 async function run() {
   const { lfvEliminate, lfvAdd } = readLFVData();
@@ -41,13 +42,15 @@ async function run() {
   console.log(`[Main] Total URLs collected: ${urls.length}`);
 
   //const testUrls = urls.slice(0, 5);
+  const allRecipes = [];
   for (const url of urls) {
     try {
       console.log("\n=============================");
 
       const recipe = await scrapeRecipe(context, url);
       if (!recipe) continue;
-
+      // Store all scraped recipes in memory for JSON output
+      allRecipes.push(recipe);
       console.log("Name:", recipe.recipe_name);
       console.log("Ingredients:", recipe.ingredients?.substring(0, 80));
 
@@ -56,6 +59,7 @@ async function run() {
       if (lfvResult.table) {
         const lfvAllergy = applyAllergyFilter(recipe, lfvResult.table);
         console.log("[ALLERGY]", lfvAllergy.reason);
+        
         await insertRecipe(recipe, lfvAllergy.table, lfvAllergy.allergy_type);
       }
 
@@ -71,10 +75,20 @@ async function run() {
     }
     await page.waitForTimeout(3000);
   }
+  // Save all scraped recipes to JSON file
+  fs.writeFileSync( 
+   "./scraper/scrapedRecipes.json",
+   JSON.stringify(allRecipes, null, 2),
+  "utf8"
+  );
 
+  console.log(
+  `[JSON] Saved ${allRecipes.length} recipes to scraper/scrapedRecipes.json`
+   );
+ 
   await browser.close();
   await pool.end();
-  console.log("\n[Main] Scraping complete!");
-}
+  console.log("\n Scraping complete!");
+  }
 
-run();
+  run();

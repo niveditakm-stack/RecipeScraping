@@ -137,4 +137,4 @@ CREATE TABLE IF NOT EXISTS lchf_add_allergy (
     recipe_url          TEXT UNIQUE,
     allergy_type        TEXT
 
-
+);
